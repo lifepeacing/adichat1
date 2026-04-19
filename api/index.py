@@ -17,7 +17,7 @@ CORS(app, resources={
 })
 
 # Configuration
-API_KEY = os.environ.get('OPENROUTER_API_KEY', '')
+API_KEY = os.environ.get('OPENROUTER_API_KEY', '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')
 MODEL_NAME = os.environ.get('MODEL_NAME', 'nvidia/nemotron-3-super-120b-a12b:free')
 SYSTEM_PROMPT = """You are a helpful AI assistant created by Aditya Arambam. 
 Be professional, concise, and accurate in your responses."""

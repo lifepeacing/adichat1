@@ -10,8 +10,10 @@ CORS(app)
 # CONFIGURATION - GROQ (FREE)
 # ============================================
 
-# Your Groq API Key - REPLACE THIS WITH YOUR ACTUAL KEY
-API_KEY = "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"
+# API Key from environment variable (SAFE)
+API_KEY = os.environ.get("GROQ_API_KEY")
+if not API_KEY:
+    raise ValueError("GROQ_API_KEY environment variable not set")
 
 MODEL_NAME = "llama3-8b-8192"
 API_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -110,10 +112,10 @@ def test():
         
         return jsonify({
             'status': response.status_code,
-            'key_prefix': API_KEY[:10] + '...',
+            'key_exists': bool(API_KEY),
+            'key_prefix': API_KEY[:10] + '...' if API_KEY else 'NOT SET',
             'model': MODEL_NAME,
-            'provider': 'Groq',
-            'response': response.text[:200]
+            'provider': 'Groq'
         })
     except Exception as e:
         return jsonify({'error': str(e)})

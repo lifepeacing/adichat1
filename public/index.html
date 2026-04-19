@@ -2,19 +2,21 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>AdiChat AI</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="header">
-        <img src="ailogo.png" alt="AI Logo" class="logo">
-        <div class="header-title">AdiChat AI</div>
-        <div class="header-subtitle">Designed by Aditya Arambam</div>
+        <img src="ailogo.png" alt="AI Logo" class="logo" onerror="this.style.display='none'">
+        <div class="header-content">
+            <div class="header-title">AdiChat AI</div>
+            <div class="header-subtitle">Designed by Aditya Arambam</div>
+        </div>
     </div>
 
     <div class="chat-container" id="chatContainer">
-        <div class="welcome-message">
+        <div class="welcome-message" id="welcomeMsg">
             <h2>Welcome to AdiChat AI</h2>
             <p>Start a conversation by typing your message below.</p>
         </div>
@@ -27,41 +29,39 @@
     </div>
 
     <div class="input-container">
-        <input type="text" class="message-input" id="messageInput" placeholder="Type your message..." autocomplete="off">
-        <button class="send-btn" id="sendBtn">
+        <input type="text" class="message-input" id="messageInput" placeholder="Type your message..." autocomplete="off" enterkeyhint="send">
+        <button class="send-btn" id="sendBtn" aria-label="Send message">
             <svg class="send-icon" viewBox="0 0 24 24">
                 <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
             </svg>
         </button>
     </div>
 
+    <div class="error-container" id="errorContainer"></div>
+
     <script>
         const chatContainer = document.getElementById('chatContainer');
         const messageInput = document.getElementById('messageInput');
         const sendBtn = document.getElementById('sendBtn');
         const typingIndicator = document.getElementById('typingIndicator');
+        const errorContainer = document.getElementById('errorContainer');
+        const welcomeMsg = document.getElementById('welcomeMsg');
 
-        // API URL - works for both local and production
         const API_URL = '/api/chat';
+        let isProcessing = false;
 
-        // Mobile detection for better error handling
-        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-        let isFirstMessage = true;
-
-        function removeWelcomeMessage() {
-            if (isFirstMessage) {
-                const welcome = document.querySelector('.welcome-message');
-                if (welcome) welcome.remove();
-                isFirstMessage = false;
+        function removeWelcome() {
+            if (welcomeMsg && welcomeMsg.parentNode) {
+                welcomeMsg.remove();
             }
         }
 
         function addMessage(text, isUser) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${isUser ? 'user-message' : 'ai-message'}`;
-            messageDiv.textContent = text;
-            chatContainer.appendChild(messageDiv);
+            removeWelcome();
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${isUser ? 'user-message' : 'ai-message'}`;
+            msgDiv.textContent = text;
+            chatContainer.appendChild(msgDiv);
             scrollToBottom();
         }
 
@@ -75,66 +75,126 @@
         }
 
         function scrollToBottom() {
-            chatContainer.scrollTop = chatContainer.scrollHeight;
+            setTimeout(() => {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }, 100);
         }
 
         function showError(message) {
+            // Clear previous errors
+            errorContainer.innerHTML = '';
+            
             const errorDiv = document.createElement('div');
             errorDiv.className = 'error-message';
             errorDiv.textContent = message;
-            chatContainer.appendChild(errorDiv);
-            scrollToBottom();
-            setTimeout(() => errorDiv.remove(), 5000);
+            
+            // Add close button
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'error-close';
+            closeBtn.innerHTML = '×';
+            closeBtn.onclick = () => errorDiv.remove();
+            errorDiv.appendChild(closeBtn);
+            
+            errorContainer.appendChild(errorDiv);
+            
+            // Auto-remove after 10 seconds (not 3) only if user doesn't interact
+            setTimeout(() => {
+                if (errorDiv.parentNode) errorDiv.remove();
+            }, 10000);
         }
 
         async function sendMessage() {
+            if (isProcessing) return;
+            
             const text = messageInput.value.trim();
             if (!text) return;
 
-            removeWelcomeMessage();
+            isProcessing = true;
+            sendBtn.disabled = true;
+            messageInput.disabled = true;
+            
             addMessage(text, true);
             messageInput.value = '';
-            messageInput.focus();
-            sendBtn.disabled = true;
-
             showTyping();
 
             try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
                 const response = await fetch(API_URL, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'Accept': 'application/json'
                     },
-                    body: JSON.stringify({ message: text })
+                    body: JSON.stringify({ message: text }),
+                    signal: controller.signal
                 });
 
-                const data = await response.json();
+                clearTimeout(timeoutId);
+                hideTyping();
 
                 if (!response.ok) {
-                    throw new Error(data.error || 'Failed to get response');
+                    let errorText = `Server error: ${response.status}`;
+                    try {
+                        const errData = await response.json();
+                        if (errData.error) errorText = errData.error;
+                    } catch (e) {}
+                    throw new Error(errorText);
                 }
 
-                hideTyping();
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                if (!data.response) {
+                    throw new Error('Empty response from AI');
+                }
+
                 addMessage(data.response, false);
+                
             } catch (error) {
-    hideTyping();
-    console.error('API Error:', error);
-    let errorMsg = 'Error: ' + error.message;
-    if (isMobile && error.message.includes('NetworkError')) {
-        errorMsg = 'Error: Network issue. Check your connection or try disabling mobile data saver.';
-    }
-    showError(errorMsg);
-} finally {
+                hideTyping();
+                console.error('Chat error:', error);
+                
+                let userMessage = error.message;
+                if (error.name === 'AbortError') {
+                    userMessage = 'Request timed out. Please try again.';
+                } else if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                    userMessage = 'Network error. Check your internet connection.';
+                } else if (error.message.includes('Failed to fetch')) {
+                    userMessage = 'Cannot connect to server. Please try again later.';
+                }
+                
+                showError(userMessage);
+            } finally {
+                isProcessing = false;
                 sendBtn.disabled = false;
+                messageInput.disabled = false;
+                messageInput.focus();
             }
         }
 
         sendBtn.addEventListener('click', sendMessage);
+        
         messageInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendMessage();
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
         });
 
-        messageInput.focus();
+        // Prevent zoom on iOS
+        document.addEventListener('gesturestart', function (e) {
+            e.preventDefault();
+        });
+
+        // Focus input on load (desktop only)
+        if (!/Mobi|Android/i.test(navigator.userAgent)) {
+            messageInput.focus();
+        }
     </script>
 </body>
 </html>

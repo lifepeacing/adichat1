@@ -7,10 +7,12 @@ app = Flask(__name__)
 CORS(app)
 
 # ============================================
-# CONFIGURATION
+# CONFIGURATION - HARDCODED FOR TESTING
 # ============================================
 
-API_KEY = os.environ.get("OPENROUTER_API_KEY", "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")
+# Hardcoded for Vercel testing - REMOVE AFTER CONFIRMED WORKING
+API_KEY = "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"
+
 MODEL_NAME = "nvidia/nemotron-3-super-120b-a12b:free"
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -44,7 +46,7 @@ def chat():
         headers = {
             'Authorization': f'Bearer {API_KEY}',
             'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://adichat.vercel.app',
+            'HTTP-Referer': 'https://adichat1.vercel.app',
             'X-Title': 'AdiChat'
         }
         
@@ -56,33 +58,66 @@ def chat():
             'top_p': 0.95
         }
         
+        print(f"Sending request to OpenRouter with model: {MODEL_NAME}")
+        
         response = requests.post(API_URL, headers=headers, json=payload, timeout=30)
+        
+        print(f"OpenRouter Response Status: {response.status_code}")
         
         if response.status_code == 200:
             result = response.json()
             ai_response = result['choices'][0]['message']['content']
             return jsonify({'response': ai_response})
         else:
-            print(f"API Error: {response.status_code}")
-            return jsonify({'error': 'AI service unavailable', 'response': 'I apologize, but I am currently unable to process your request. Please try again later.'}), 500
+            error_msg = f"API Error {response.status_code}: {response.text}"
+            print(error_msg)
+            return jsonify({
+                'error': 'AI service unavailable', 
+                'response': 'I apologize, but I am currently unable to process your request. Please try again later.'
+            }), 500
             
     except requests.exceptions.Timeout:
-        return jsonify({'error': 'Request timeout', 'response': 'The request took too long. Please try again.'}), 504
+        print("Request timeout")
+        return jsonify({
+            'error': 'Request timeout', 
+            'response': 'The request took too long. Please try again.'
+        }), 504
     except Exception as e:
         print(f"Server Error: {str(e)}")
-        return jsonify({'error': 'Internal server error', 'response': 'An unexpected error occurred.'}), 500
+        return jsonify({
+            'error': 'Internal server error', 
+            'response': 'An unexpected error occurred.'
+        }), 500
 
 @app.route('/api/health', methods=['GET'])
 def health():
     return jsonify({'status': 'healthy', 'service': 'AdiChat API'})
 
-@app.route('/', methods=['GET'])
-def index():
-    return jsonify({
-        'service': 'AdiChat API',
-        'version': '1.0.0',
-        'designer': 'Aditya Arambam'
-    })
+@app.route('/api/test', methods=['GET'])
+def test():
+    """Test endpoint to verify API key works"""
+    try:
+        headers = {
+            'Authorization': f'Bearer {API_KEY}',
+            'Content-Type': 'application/json',
+        }
+        
+        payload = {
+            'model': MODEL_NAME,
+            'messages': [{'role': 'user', 'content': 'Say "OK" if you can hear me'}],
+            'max_tokens': 10
+        }
+        
+        response = requests.post(API_URL, headers=headers, json=payload, timeout=10)
+        
+        return jsonify({
+            'status': response.status_code,
+            'key_first_10': API_KEY[:10] + '...',
+            'model': MODEL_NAME,
+            'response': response.text[:200]
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)})
 
 # ============================================
 # VERCEL HANDLER

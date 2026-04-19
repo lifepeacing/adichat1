@@ -10,11 +10,7 @@ CORS(app)
 # CONFIGURATION - GROQ (FREE)
 # ============================================
 
-# API Key from environment variable (SAFE)
-API_KEY = os.environ.get("GROQ_API_KEY")
-if not API_KEY:
-    raise ValueError("GROQ_API_KEY environment variable not set")
-
+API_KEY = "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"
 MODEL_NAME = "llama3-8b-8192"
 API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
@@ -40,10 +36,9 @@ def chat():
         messages = [{'role': 'system', 'content': SYSTEM_PROMPT}]
         
         for msg in history[-10:]:
-            messages.append(msg)
+            messages.append({'role': msg.get('role', 'user'), 'content': msg.get('content', '')})
         
-        if not history or history[-1].get('content') != user_message:
-            messages.append({'role': 'user', 'content': user_message})
+        messages.append({'role': 'user', 'content': user_message})
         
         headers = {
             'Authorization': f'Bearer {API_KEY}',
@@ -54,15 +49,11 @@ def chat():
             'model': MODEL_NAME,
             'messages': messages,
             'temperature': 0.7,
-            'max_tokens': 1000,
+            'max_completion_tokens': 1000,
             'top_p': 0.95
         }
         
-        print(f"Sending request to Groq with model: {MODEL_NAME}")
-        
         response = requests.post(API_URL, headers=headers, json=payload, timeout=30)
-        
-        print(f"Groq Response Status: {response.status_code}")
         
         if response.status_code == 200:
             result = response.json()
@@ -76,12 +67,6 @@ def chat():
                 'response': 'I apologize, but I am currently unable to process your request. Please try again later.'
             }), 500
             
-    except requests.exceptions.Timeout:
-        print("Request timeout")
-        return jsonify({
-            'error': 'Request timeout', 
-            'response': 'The request took too long. Please try again.'
-        }), 504
     except Exception as e:
         print(f"Server Error: {str(e)}")
         return jsonify({
@@ -104,19 +89,30 @@ def test():
         
         payload = {
             'model': MODEL_NAME,
-            'messages': [{'role': 'user', 'content': 'Say "OK" if you can hear me'}],
-            'max_tokens': 10
+            'messages': [
+                {'role': 'system', 'content': 'You are a helpful assistant.'},
+                {'role': 'user', 'content': 'Say "OK"'}
+            ],
+            'max_completion_tokens': 10
         }
         
         response = requests.post(API_URL, headers=headers, json=payload, timeout=10)
         
-        return jsonify({
-            'status': response.status_code,
-            'key_exists': bool(API_KEY),
-            'key_prefix': API_KEY[:10] + '...' if API_KEY else 'NOT SET',
-            'model': MODEL_NAME,
-            'provider': 'Groq'
-        })
+        if response.status_code == 200:
+            result = response.json()
+            return jsonify({
+                'status': response.status_code,
+                'key_exists': True,
+                'key_prefix': API_KEY[:10] + '...',
+                'model': MODEL_NAME,
+                'provider': 'Groq',
+                'response': result['choices'][0]['message']['content']
+            })
+        else:
+            return jsonify({
+                'status': response.status_code,
+                'error': response.text
+            })
     except Exception as e:
         return jsonify({'error': str(e)})
 

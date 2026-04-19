@@ -7,14 +7,14 @@ app = Flask(__name__)
 CORS(app)
 
 # ============================================
-# CONFIGURATION - HARDCODED FOR TESTING
+# CONFIGURATION - GROQ (FREE)
 # ============================================
 
-# Hardcoded for Vercel testing - REMOVE AFTER CONFIRMED WORKING
-API_KEY = "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"
+# Your Groq API Key - REPLACE THIS WITH YOUR ACTUAL KEY
+API_KEY = "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"
 
-MODEL_NAME = "nvidia/nemotron-3-super-120b-a12b:free"
-API_URL = "https://openrouter.ai/api/v1/chat/completions"
+MODEL_NAME = "llama3-8b-8192"
+API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 SYSTEM_PROMPT = """You are AdiChat, a professional and helpful AI assistant created by Aditya Arambam.
 Your responses should be clear, concise, professional, and helpful.
@@ -45,9 +45,7 @@ def chat():
         
         headers = {
             'Authorization': f'Bearer {API_KEY}',
-            'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://adichat1.vercel.app',
-            'X-Title': 'AdiChat'
+            'Content-Type': 'application/json'
         }
         
         payload = {
@@ -58,11 +56,11 @@ def chat():
             'top_p': 0.95
         }
         
-        print(f"Sending request to OpenRouter with model: {MODEL_NAME}")
+        print(f"Sending request to Groq with model: {MODEL_NAME}")
         
         response = requests.post(API_URL, headers=headers, json=payload, timeout=30)
         
-        print(f"OpenRouter Response Status: {response.status_code}")
+        print(f"Groq Response Status: {response.status_code}")
         
         if response.status_code == 200:
             result = response.json()
@@ -112,8 +110,9 @@ def test():
         
         return jsonify({
             'status': response.status_code,
-            'key_first_10': API_KEY[:10] + '...',
+            'key_prefix': API_KEY[:10] + '...',
             'model': MODEL_NAME,
+            'provider': 'Groq',
             'response': response.text[:200]
         })
     except Exception as e:
@@ -128,7 +127,7 @@ def handler(request, response):
 
 if __name__ == '__main__':
     print("=" * 50)
-    print("AdiChat Backend Server")
+    print("AdiChat Backend Server (Groq)")
     print("Designed by Aditya Arambam")
     print("=" * 50)
     app.run(host='0.0.0.0', port=5000, debug=True)

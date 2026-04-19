@@ -41,8 +41,11 @@
         const sendBtn = document.getElementById('sendBtn');
         const typingIndicator = document.getElementById('typingIndicator');
 
-        // API URL - uses same origin in production
+        // API URL - works for both local and production
         const API_URL = '/api/chat';
+
+        // Mobile detection for better error handling
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
         let isFirstMessage = true;
 
@@ -114,9 +117,14 @@
                 hideTyping();
                 addMessage(data.response, false);
             } catch (error) {
-                hideTyping();
-                showError('Error: ' + error.message);
-            } finally {
+    hideTyping();
+    console.error('API Error:', error);
+    let errorMsg = 'Error: ' + error.message;
+    if (isMobile && error.message.includes('NetworkError')) {
+        errorMsg = 'Error: Network issue. Check your connection or try disabling mobile data saver.';
+    }
+    showError(errorMsg);
+} finally {
                 sendBtn.disabled = false;
             }
         }
